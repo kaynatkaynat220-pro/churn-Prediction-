@@ -53,12 +53,6 @@ st.markdown("""
             font-size: 1.1rem;
             margin-bottom: 2rem;
         }
-        .metric-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            padding: 20px;
-            color: white;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -66,7 +60,7 @@ st.markdown('<h1 class="hero-title">Telecom Churn Analytics & Customer Segmentat
 st.markdown('<p class="hero-subtitle">Predict churn, compare models, and segment customers with AI</p>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# Navigation Buttons (Renamed)
+# Navigation Buttons
 # ------------------------------------------------------------------
 PAGES = {
     "🔮 Predict Churn": "predict",
@@ -140,17 +134,22 @@ def load_artifacts():
 metrics_df, best_name, best_pipe, models, cms, cluster_scores, labels_dict, X_pca, summaries = load_artifacts()
 
 # ------------------------------------------------------------------
-# Page: Predict Churn
+# Page: Predict Churn (Home) with Model Selection
 # ------------------------------------------------------------------
 def predict_page():
     st.header("🔮 Predict Customer Churn")
     st.success(f"**Top performing model:** {best_name}")
 
+    # ==========================
+    # MODEL SELECTION DROPDOWN
+    # ==========================
     selected_model = st.selectbox(
-        "Choose a classifier to predict churn",
+        "🤖 Choose a Classification Model",
         list(models.keys()),
-        index=list(models.keys()).index(best_name)
+        index=list(models.keys()).index(best_name),
+        help="Select any trained model to predict churn"
     )
+    st.info(f"Selected Model: **{selected_model}**")
 
     uploaded = st.file_uploader("Drop a customer CSV file here", type=["csv"])
     if uploaded is not None:
@@ -160,6 +159,7 @@ def predict_page():
 
         X = input_df.drop(["Churn", "customerID"], axis=1, errors="ignore")
 
+        # Predict using selected model
         pipe = models[selected_model]
         predictions = pipe.predict(X)
         probabilities = pipe.predict_proba(X)
@@ -172,13 +172,15 @@ def predict_page():
         churn_count = int((predictions == "Yes").sum())
         churn_rate = churn_count / total * 100
 
+        # Metrics Cards
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Customers", total)
         c2.metric("Churners", churn_count)
         c3.metric("Churn Rate", f"{churn_rate:.2f}%")
         c4.metric("Model Used", selected_model)
 
-        tab1, tab2, tab3 = st.tabs(["Predictions", "Model Metrics", "Confusion Matrix"])
+        # Tabs
+        tab1, tab2, tab3 = st.tabs(["📋 Predictions", "📊 Model Metrics", "🔍 Confusion Matrix"])
 
         with tab1:
             st.dataframe(input_df.head(50), use_container_width=True)
@@ -194,13 +196,15 @@ def predict_page():
         with tab2:
             model_metrics = metrics_df[metrics_df["Model"] == selected_model].reset_index(drop=True)
             st.dataframe(model_metrics, use_container_width=True)
+
             fig = px.bar(
                 model_metrics.T[1:].reset_index(),
                 x="index",
                 y=0,
                 color="index",
-                title=f"{selected_model} Metrics",
-                labels={"index": "Metric", "0": "Score"}
+                title=f"{selected_model} Performance Metrics",
+                labels={"index": "Metric", "0": "Score"},
+                color_discrete_sequence=px.colors.qualitative.Bold
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -217,19 +221,20 @@ def predict_page():
             )
             st.plotly_chart(fig_cm, use_container_width=True)
 
+        # Evaluate if true labels exist
         if "Churn" in input_df.columns:
             y_true = input_df["Churn"]
             acc = accuracy_score(y_true, predictions)
             prec = precision_score(y_true, predictions, pos_label="Yes", zero_division=0)
             rec = recall_score(y_true, predictions, pos_label="Yes", zero_division=0)
             f1 = f1_score(y_true, predictions, pos_label="Yes", zero_division=0)
+
             st.subheader("Evaluation on Uploaded Data")
-            st.write({
-                "Accuracy": round(acc, 4),
-                "Precision": round(prec, 4),
-                "Recall": round(rec, 4),
-                "F1-Score": round(f1, 4)
+            eval_df = pd.DataFrame({
+                "Metric": ["Accuracy", "Precision", "Recall", "F1-Score"],
+                "Score": [round(acc, 4), round(prec, 4), round(rec, 4), round(f1, 4)]
             })
+            st.dataframe(eval_df, use_container_width=True)
 
         csv = input_df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Predictions", csv, "predictions.csv", "text/csv")
