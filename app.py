@@ -134,22 +134,11 @@ def load_artifacts():
 metrics_df, best_name, best_pipe, models, cms, cluster_scores, labels_dict, X_pca, summaries = load_artifacts()
 
 # ------------------------------------------------------------------
-# Page: Predict Churn (Home) with Model Selection
+# Page: Predict Churn (Home) - Auto Logistic Regression
 # ------------------------------------------------------------------
 def predict_page():
     st.header("🔮 Predict Customer Churn")
-    st.success(f"**Top performing model:** {best_name}")
-
-    # ==========================
-    # MODEL SELECTION DROPDOWN
-    # ==========================
-    selected_model = st.selectbox(
-        "🤖 Choose a Classification Model",
-        list(models.keys()),
-        index=list(models.keys()).index(best_name),
-        help="Select any trained model to predict churn"
-    )
-    st.info(f"Selected Model: **{selected_model}**")
+    st.info("This page uses **Logistic Regression** model to predict customer churn automatically.")
 
     uploaded = st.file_uploader("Drop a customer CSV file here", type=["csv"])
     if uploaded is not None:
@@ -159,8 +148,8 @@ def predict_page():
 
         X = input_df.drop(["Churn", "customerID"], axis=1, errors="ignore")
 
-        # Predict using selected model
-        pipe = models[selected_model]
+        # AUTO-SELECTED MODEL: LOGISTIC REGRESSION
+        pipe = models["Logistic Regression"]
         predictions = pipe.predict(X)
         probabilities = pipe.predict_proba(X)
         yes_idx = list(pipe.classes_).index("Yes")
@@ -173,53 +162,23 @@ def predict_page():
         churn_rate = churn_count / total * 100
 
         # Metrics Cards
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
         c1.metric("Total Customers", total)
-        c2.metric("Churners", churn_count)
+        c2.metric("Predicted Churners", churn_count)
         c3.metric("Churn Rate", f"{churn_rate:.2f}%")
-        c4.metric("Model Used", selected_model)
 
-        # Tabs
-        tab1, tab2, tab3 = st.tabs(["📋 Predictions", "📊 Model Metrics", "🔍 Confusion Matrix"])
+        st.subheader("Churn Predictions Table")
+        st.dataframe(input_df, use_container_width=True)
 
-        with tab1:
-            st.dataframe(input_df.head(50), use_container_width=True)
-            fig = px.pie(
-                names=["No Churn", "Churn"],
-                values=[total - churn_count, churn_count],
-                title="Churn Prediction Distribution",
-                color=["No Churn", "Churn"],
-                color_discrete_map={"No Churn": "#92FE9D", "Churn": "#FF6B6B"}
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with tab2:
-            model_metrics = metrics_df[metrics_df["Model"] == selected_model].reset_index(drop=True)
-            st.dataframe(model_metrics, use_container_width=True)
-
-            fig = px.bar(
-                model_metrics.T[1:].reset_index(),
-                x="index",
-                y=0,
-                color="index",
-                title=f"{selected_model} Performance Metrics",
-                labels={"index": "Metric", "0": "Score"},
-                color_discrete_sequence=px.colors.qualitative.Bold
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with tab3:
-            cm = cms[selected_model]
-            fig_cm = px.imshow(
-                cm,
-                text_auto=True,
-                x=["No", "Yes"],
-                y=["No", "Yes"],
-                labels=dict(x="Predicted", y="Actual"),
-                title=f"{selected_model} Confusion Matrix",
-                color_continuous_scale="Greens"
-            )
-            st.plotly_chart(fig_cm, use_container_width=True)
+        # Churn distribution chart
+        fig = px.pie(
+            names=["No Churn", "Churn"],
+            values=[total - churn_count, churn_count],
+            title="Churn Prediction Distribution",
+            color=["No Churn", "Churn"],
+            color_discrete_map={"No Churn": "#92FE9D", "Churn": "#FF6B6B"}
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
         # Evaluate if true labels exist
         if "Churn" in input_df.columns:
@@ -236,6 +195,18 @@ def predict_page():
             })
             st.dataframe(eval_df, use_container_width=True)
 
+            cm = confusion_matrix(y_true, predictions, labels=["No", "Yes"])
+            fig_cm = px.imshow(
+                cm,
+                text_auto=True,
+                x=["No", "Yes"],
+                y=["No", "Yes"],
+                labels=dict(x="Predicted", y="Actual"),
+                title="Confusion Matrix",
+                color_continuous_scale="Greens"
+            )
+            st.plotly_chart(fig_cm, use_container_width=True)
+
         csv = input_df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Predictions", csv, "predictions.csv", "text/csv")
 
@@ -244,7 +215,7 @@ def predict_page():
 # ------------------------------------------------------------------
 def models_page():
     st.header("⚔️ Model Arena")
-    st.write("Battle of the 5 supervised learning algorithms.")
+    st.write("Comparison of all 5 trained classification algorithms.")
 
     styled = metrics_df.style.highlight_max(
         subset=["Accuracy", "Precision", "Recall", "F1-Score"],
@@ -457,7 +428,7 @@ def pipeline_page():
         "🔧 **Preprocessing** — Scale numerics, encode categoricals with one-hot encoding.",
         "✂️ **Splitting** — 80/20 stratified train-test split.",
         "🤖 **Classification** — Train Logistic Regression, Decision Tree, Random Forest, KNN, Naive Bayes.",
-        "🏆 **Selection** — Best model chosen by F1-Score.",
+        "🏆 **Selection** — Logistic Regression is used for home page prediction.",
         "🧬 **Clustering** — PCA + K-Means, Hierarchical, DBSCAN.",
         "📊 **Evaluation** — Silhouette scores and cluster summaries.",
         "🚀 **Deployment** — Interactive Streamlit dashboard."
